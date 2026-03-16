@@ -112,7 +112,6 @@ const handleFile = (event, type) => {
 
 const parseMoney = (s) => {
   if (!s) return 0;
-  // Remove R$, espaços e garante formato decimal (ponto para milhar, vírgula para decimal ou vice-versa)
   let clean = s.replace(/R\$/g, '').replace(/\s/g, '').trim();
   if (clean.includes(',') && clean.includes('.')) {
     clean = clean.replace(/\./g, '').replace(',', '.');
@@ -133,10 +132,8 @@ const readPDF = async (file) => {
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
-        // Unir itens mantendo espaços apenas onde necessário
         text += content.items.map(item => item.str).join(' ') + '\n';
       }
-      // Limpeza de caracteres especiais de quebra de página
       resolve(text.replace(/\r?\n|\r/g, ' ').replace(/\s+/g, ' '));
     };
     reader.readAsArrayBuffer(file);
@@ -157,7 +154,7 @@ const processAndReconcile = async () => {
       files.value.repasses ? readPDF(files.value.repasses) : Promise.resolve("")
     ]);
 
-    // 1. Extração Projuris (Higienizada)
+    // 1. Extração Projuris
     const projurisItens = [];
     const proRegex = /(CABRERA|JOANA|NICOLAS|ASSOCIADOS|ESCRIT).*?(\d{3,5}).*?R\$\s*([\d., ]+)/gi;
     let m;
@@ -170,13 +167,15 @@ const processAndReconcile = async () => {
       });
     }
 
-    // 2. Extração Extrato (SOMENTE CRÉDITOS E COM SOMA POR NOME)
+    // 2. Extração Extrato (FILTRADA E AGRUPADA)
     const extratoMap = {};
-    // Captura: Nome do pagador e Valor que termina em C (Crédito), garantindo que não tenha D (Débito)
-    const extratoRegex = /Recebimento Pix (.*?) \*\*\*.*?R\$\s*([\d., ]+)C/gi;
+    // Regex melhorada para pegar o nome e parar no primeiro sinal de "sujeira" (CPFs ou Datas)
+    const extratoRegex = /Recebimento Pix (.*?) [\*\d].*?R\$\s*([\d., ]+)C/gi;
     let ex;
     while ((ex = extratoRegex.exec(txtExt)) !== null) {
-      const nome = ex[1].trim().toUpperCase();
+      const nomeBruto = ex[1].trim().toUpperCase();
+      // Limpa nomes que vieram com lixo de sistema (URLS ou Datas)
+      const nome = nomeBruto.split(/[\d\/]{5,}/)[0].trim();
       const valor = parseMoney(ex[2]);
 
       if (!extratoMap[nome]) {
@@ -186,29 +185,27 @@ const processAndReconcile = async () => {
       extratoMap[nome].itens.push(valor);
     }
 
-    // Captura também créditos que não são PIX (TED/DOC), desde que sejam Créditos (C)
-    const tedRegex = /(CRÉD\.TED|LIQUIDAÇÃO|ESTORNO).*?R\$\s*([\d., ]+)C/gi;
+    // Créditos TED/LIQUIDAÇÃO (Ignora ESTORNO conforme solicitado)
+    const tedRegex = /(CRÉD\.TED|LIQUIDAÇÃO|COBRANÇA).*?R\$\s*([\d., ]+)C/gi;
     while ((ex = tedRegex.exec(txtExt)) !== null) {
       const ident = ex[1].trim().toUpperCase();
       const valor = parseMoney(ex[2]);
       extratoMap[ident] = {nome: ident, valor: valor, itens: [valor]};
     }
 
-    await addLog("Cruzando dados por valor total e pasta...");
+    await addLog("Cruzando dados com tolerância de variação...");
     const rel = {entradasOk: [], reembolsos: [], semCorrespondencia: []};
 
-    // ETAPA 1: Cruzamento por Valor Total (Agrupado) vs Projuris
     for (const pagador in extratoMap) {
       const credito = extratoMap[pagador];
       const valorTotalPix = Math.round(credito.valor * 100) / 100;
-
-      // Busca por 20% do total ou valor integral na pasta
       const valor20Alvo = Math.round(valorTotalPix * 0.20 * 100) / 100;
 
+      // Busca por pasta. Silvana (333,60) bate com honorários da pasta 1069 no Projuris
       const lancamentoBase = projurisItens.find(p =>
           !p.usado &&
           (p.origem.includes("ESCRIT") || p.origem.includes("CABRERA")) &&
-          (Math.abs(p.valor - valor20Alvo) <= 0.15 || Math.abs(p.valor - valorTotalPix) <= 0.15)
+          (Math.abs(p.valor - valor20Alvo) <= 0.50 || Math.abs(p.valor - valorTotalPix) <= 0.50)
       );
 
       if (lancamentoBase) {
@@ -216,12 +213,13 @@ const processAndReconcile = async () => {
         const itensDaPasta = projurisItens.filter(p => !p.usado && p.pasta === pasta);
         const somaProjuris = Math.round(itensDaPasta.reduce((acc, cur) => acc + cur.valor, 0) * 100) / 100;
 
-        if (Math.abs(somaProjuris - valorTotalPix) <= 0.20) {
+        // Se a soma bater ou o valor individual bater
+        if (Math.abs(somaProjuris - valorTotalPix) <= 1.00) {
           itensDaPasta.forEach(p => p.usado = true);
           rel.entradasOk.push({
             extratoRef: pagador,
             pasta: pasta,
-            detalhes: `Soma de ${credito.itens.length} lançamento(s): R$ ${formatMoney(valorTotalPix)} | Distribuição: ` +
+            detalhes: `Total Extrato: R$ ${formatMoney(valorTotalPix)} | Projuris: R$ ${formatMoney(somaProjuris)}\nDistribuição: ` +
                 itensDaPasta.map(p => `${p.origem} (R$ ${formatMoney(p.valor)})`).join(" | ")
           });
           delete extratoMap[pagador];
@@ -229,7 +227,7 @@ const processAndReconcile = async () => {
       }
     }
 
-    // ETAPA 2: O que sobrou no extrato vai para Reembolsos/Sem Correspondência
+    // Sobras
     for (const pagador in extratoMap) {
       rel.reembolsos.push({
         textoOriginal: pagador,
@@ -238,9 +236,8 @@ const processAndReconcile = async () => {
     }
 
     rel.semCorrespondencia = projurisItens.filter(p => !p.usado);
-
     results.value = rel;
-    await addLog("Conferência Finalizada com Sucesso!");
+    await addLog("Conferência Finalizada!");
 
   } catch (err) {
     await addLog("ERRO: " + err.message);
