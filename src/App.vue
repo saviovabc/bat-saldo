@@ -3,31 +3,8 @@
     <div class="max-w-7xl mx-auto bg-white p-6 md:p-8 rounded-xl shadow-lg border border-slate-200">
 
       <div class="text-center mb-8">
-        <h1 class="text-3xl font-extrabold text-blue-700 tracking-tight mb-2">Conciliação Financeira v5.2 (Final)</h1>
-
-        <div
-            class="flex flex-wrap justify-center gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200 max-w-2xl mx-auto mt-4">
-          <div class="flex flex-col">
-            <label class="text-xs font-bold text-slate-500 uppercase">Escritório (%)</label>
-            <input type="number" v-model.number="config.pctEscritorio"
-                   class="w-24 p-2 border rounded font-bold text-blue-700">
-          </div>
-          <div class="flex flex-col">
-            <label class="text-xs font-bold text-slate-500 uppercase">Joana (%)</label>
-            <input type="number" v-model.number="config.pctJoana"
-                   class="w-24 p-2 border rounded font-bold text-emerald-700">
-          </div>
-          <div class="flex flex-col">
-            <label class="text-xs font-bold text-slate-500 uppercase">Nicolas (%)</label>
-            <input type="number" v-model.number="config.pctNicolas"
-                   class="w-24 p-2 border rounded font-bold text-orange-700">
-          </div>
-          <div class="flex items-end pb-1">
-            <span :class="totalPct === 100 ? 'text-green-600' : 'text-red-600'" class="text-sm font-bold">
-              Total: {{ totalPct }}%
-            </span>
-          </div>
-        </div>
+        <h1 class="text-3xl font-extrabold text-blue-700 tracking-tight mb-2">Conciliação Financeira v6.3</h1>
+        <p class="text-slate-500">Correção de Leitura e Agrupamento por Nome Completo</p>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -63,66 +40,66 @@
       </div>
 
       <button @click="processAndReconcile"
-              class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-4 rounded-lg disabled:opacity-50"
-              :disabled="isProcessing || totalPct !== 100">
-        {{ isProcessing ? 'Processando...' : 'Iniciar Conferência' }}
+              class="w-full bg-slate-800 hover:bg-black text-white font-bold py-4 rounded-lg shadow-md transition-all"
+              :disabled="isProcessing">
+        {{ isProcessing ? 'CONFERINDO DADOS...' : 'INICIAR CONFERÊNCIA' }}
       </button>
 
       <div v-if="logs.length > 0"
-           class="mt-8 bg-black text-green-400 p-4 rounded-lg font-mono text-sm h-48 overflow-y-auto shadow-inner">
+           class="mt-8 bg-slate-900 text-blue-300 p-4 rounded-lg font-mono text-xs h-40 overflow-y-auto">
         <div v-for="(log, index) in logs" :key="index">> {{ log }}</div>
       </div>
 
-      <div v-if="results" class="mt-10 space-y-8">
-        <div class="border border-green-200 rounded-xl overflow-hidden shadow-sm">
-          <div class="bg-green-50 text-green-800 p-4 font-bold border-b border-green-200">1. Entradas OK
-            ({{ results.entradasOk.length }})
-          </div>
-          <div class="p-4 bg-white space-y-3">
+      <div v-if="results" class="mt-10 space-y-10">
+        <section>
+          <h2 class="text-xl font-bold text-emerald-700 mb-4 flex items-center">
+            <span class="bg-emerald-100 px-3 py-1 rounded-full mr-2">{{ results.entradasOk.length }}</span>
+            Entradas OK
+          </h2>
+          <div class="grid grid-cols-1 gap-3">
             <div v-for="(item, i) in results.entradasOk" :key="i"
-                 class="p-3 bg-green-50/50 border border-green-100 rounded text-sm">
-              <div class="flex justify-between font-bold text-green-900">
+                 class="bg-white border-l-4 border-emerald-500 p-4 shadow-sm rounded-r-lg">
+              <div class="flex justify-between font-bold text-slate-800">
                 <span>{{ item.extratoRef }}</span>
                 <span>Pasta: {{ item.pasta }}</span>
               </div>
-              <div class="text-slate-600 mt-2 p-2 bg-white rounded border border-green-50 whitespace-pre-line">
+              <div
+                  class="mt-2 text-xs text-slate-600 bg-slate-50 p-2 rounded border border-slate-100 whitespace-pre-line">
                 {{ item.detalhes }}
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        <div class="border border-blue-200 rounded-xl overflow-hidden shadow-sm">
-          <div class="bg-blue-50 text-blue-800 p-4 font-bold border-b border-blue-200">2. Créditos Sem Correspondência
-            ({{ results.reembolsos.length }})
-          </div>
-          <div class="p-4 bg-white max-h-96 overflow-y-auto">
+        <section>
+          <h2 class="text-xl font-bold text-blue-700 mb-4 flex items-center">
+            <span class="bg-blue-100 px-3 py-1 rounded-full mr-2">{{ results.reembolsos.length }}</span>
+            Créditos Sem Correspondência
+          </h2>
+          <div class="bg-white rounded-lg shadow-sm border border-blue-100 p-4">
             <div v-for="(item, i) in results.reembolsos" :key="i"
                  class="text-sm border-b py-2 flex justify-between gap-4">
-              <span class="truncate">{{ item.textoOriginal }}</span>
-              <span class="font-bold whitespace-nowrap">R$ {{ item.valorFormatado }}</span>
+              <span class="text-slate-600">{{ item.textoOriginal }}</span>
+              <span class="font-bold text-blue-600 whitespace-nowrap">R$ {{ item.valorFormatado }}</span>
             </div>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import {ref, computed} from 'vue';
+import {ref} from 'vue';
 import * as pdfjsLib from 'pdfjs-dist/build/pdf';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker?url';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 const files = ref({extrato: null, projuris: null, repasses: null});
-const config = ref({pctEscritorio: 20, pctJoana: 40, pctNicolas: 40});
 const isProcessing = ref(false);
 const logs = ref([]);
 const results = ref(null);
-
-const totalPct = computed(() => config.value.pctEscritorio + config.value.pctJoana + config.value.pctNicolas);
 
 const addLog = async (m) => {
   logs.value.push(m);
@@ -134,7 +111,8 @@ const handleFile = (event, type) => {
 
 const parseMoney = (s) => {
   if (!s) return 0;
-  return Math.round((parseFloat(s.replace(/\./g, '').replace(',', '.').replace(/[^0-9.-]/g, '')) || 0) * 100) / 100;
+  const clean = s.replace(/\./g, '').replace(',', '.').replace(/[^0-9.-]/g, '');
+  return Math.round(parseFloat(clean) * 100) / 100;
 };
 
 const formatMoney = (v) => v.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -163,39 +141,25 @@ const processAndReconcile = async () => {
   results.value = null;
 
   try {
-    await addLog("Lendo e normalizando dados...");
+    await addLog("Lendo PDFs...");
     const [txtExt, txtPro, txtRep] = await Promise.all([
       readPDF(files.value.extrato),
       readPDF(files.value.projuris),
       files.value.repasses ? readPDF(files.value.repasses) : Promise.resolve("")
     ]);
 
-    // 1. Extração Extrato (Cada crédito é um item)
-    const extrato = [];
-    txtExt.split(/(?=\d{2}\/\d{2}\s)/g).forEach(bloco => {
-      if (bloco.includes('R$') && bloco.includes('C ') && !/SALDO|JUROS|ESTORNO/i.test(bloco)) {
-        const valor = parseMoney(bloco.match(/R\$\s*([\d.,]+)C/i)?.[1]);
-        // Captura o nome do pagador para ajudar no log
-        const pagador = bloco.match(/Recebimento Pix (.*?) \*\*\*/i)?.[1] || bloco.substring(0, 30);
-        extrato.push({texto: bloco.trim(), valor, pagador, usado: false});
-      }
-    });
-
-    // 2. Extração Projuris (Agrupamento por PASTA)
-    // Regex ultra-flexível para ignorar quebras de linha e lixo entre os dados
+    // 1. Extração Projuris por Pasta
     const projurisPorPasta = {};
-    const proRegex = /(CABRERA|JOANA|NICOLAS|ALVES PINTO|ASSOCIADOS).*?(\d{3,4}).*?R\$\s*([\d.,]+)/gi;
-
+    const proRegex = /(CABRERA|JOANA|NICOLAS|ASSOCIADOS|ESCRIT).*?(\d{3,4}).*?R\$\s*([\d.,]+)/gi;
     let m;
     while ((m = proRegex.exec(txtPro)) !== null) {
       const pasta = m[2];
       const valor = parseMoney(m[3]);
-      if (!projurisPorPasta[pasta]) projurisPorPasta[pasta] = {total: 0, itens: []};
+      if (!projurisPorPasta[pasta]) projurisPorPasta[pasta] = {total: 0, usado: false};
       projurisPorPasta[pasta].total += valor;
-      projurisPorPasta[pasta].itens.push({adv: m[1], valor});
     }
 
-    // 3. Extração Repasses (Agregado por Pasta)
+    // 2. Extração Repasses
     const repasses = {};
     const repRegex = /(?:Repasse|Indica).*?(\d{3,4}).*?R\$\s*([\d.,]+)/gi;
     let r;
@@ -204,65 +168,63 @@ const processAndReconcile = async () => {
       repasses[p] = (repasses[p] || 0) + parseMoney(r[2]);
     }
 
-    await addLog(`Processando ${extrato.length} créditos...`);
+    // 3. Extração Extrato (Apenas Créditos)
+    const extrato = [];
+    // Quebra o extrato por datas para analisar linha a linha
+    txtExt.split(/(?=\d{2}\/\d{2}\s)/g).forEach(linha => {
+      // Regra de Ouro: Precisa ter R$, precisa ter 'C' (crédito) e NÃO pode ter 'D' (débito) no valor final
+      if (linha.includes('R$') && linha.includes('C ') && !linha.match(/R\$\s*[\d.,]+D/)) {
+        if (/SALDO|JUROS|TARIFA/i.test(linha)) return;
+
+        const valor = parseMoney(linha.match(/R\$\s*([\d.,]+)C/i)?.[1]);
+        const pagadorMatch = linha.match(/Recebimento Pix (.*?) \*\*\*/i);
+        const pagador = pagadorMatch ? pagadorMatch[1].trim() : linha.substring(0, 50).trim();
+
+        extrato.push({texto: linha.trim(), valor, pagador, usado: false});
+      }
+    });
+
+    await addLog(`Processando ${extrato.length} créditos encontrados...`);
 
     const rel = {entradasOk: [], reembolsos: []};
 
-    // 4. Cruzamento Lógico (Prioridade: Valores que batem com (Projuris + Repasse))
-    // Tentamos encontrar qual pasta corresponde a qual valor do extrato
-    extrato.forEach(credito => {
+    // PASSO 1: Cruzamento por Nome Completo (Somas)
+    const nomesUnicos = [...new Set(extrato.map(e => e.pagador))];
+
+    nomesUnicos.forEach(nome => {
+      const itensDesteNome = extrato.filter(e => e.pagador === nome && !e.usado);
+      if (itensDesteNome.length === 0) return;
+
+      const somaExtrato = Math.round(itensDesteNome.reduce((acc, cur) => acc + cur.valor, 0) * 100) / 100;
+
       for (const [pasta, dados] of Object.entries(projurisPorPasta)) {
         if (dados.usado) continue;
+        const totalPro = Math.round((dados.total + (repasses[pasta] || 0)) * 100) / 100;
 
-        const valorRepasse = repasses[pasta] || 0;
-        const totalNecessario = Math.round((dados.total + valorRepasse) * 100) / 100;
-
-        // Se o valor do extrato é igual à soma do Projuris + Repasse daquela pasta
-        if (Math.abs(credito.valor - totalNecessario) < 0.10) {
-          credito.usado = true;
+        if (Math.abs(somaExtrato - totalPro) < 0.15) {
+          itensDesteNome.forEach(i => i.usado = true);
           dados.usado = true;
           rel.entradasOk.push({
-            extratoRef: `${credito.pagador} (R$ ${formatMoney(credito.valor)})`,
+            extratoRef: nome,
             pasta: pasta,
-            detalhes: `Soma Projuris: R$ ${formatMoney(dados.total)}\nRepasses: R$ ${formatMoney(valorRepasse)}`
+            detalhes: `Soma Extrato (R$ ${formatMoney(somaExtrato)}) = Projuris (R$ ${formatMoney(dados.total)}) + Repasse (R$ ${formatMoney(repasses[pasta] || 0)})`
           });
           break;
         }
       }
     });
 
-    // 5. Tratamento Especial: Somar Pix da mesma pessoa (Caso Silvana)
-    const pagadores = [...new Set(extrato.filter(e => !e.usado).map(e => e.pagador))];
-    pagadores.forEach(p => {
-      const itensPessoa = extrato.filter(e => !e.usado && e.pagador === p);
-      if (itensPessoa.length > 1) {
-        const somaPessoa = itensPessoa.reduce((acc, cur) => acc + cur.valor, 0);
-        for (const [pasta, dados] of Object.entries(projurisPorPasta)) {
-          if (dados.usado) continue;
-          if (Math.abs(somaPessoa - (dados.total + (repasses[pasta] || 0))) < 0.10) {
-            itensPessoa.forEach(i => i.usado = true);
-            dados.usado = true;
-            rel.entradasOk.push({
-              extratoRef: `SOMA PIX: ${p} (R$ ${formatMoney(somaPessoa)})`,
-              pasta: pasta,
-              detalhes: `Múltiplos créditos batem com a pasta ${pasta}.`
-            });
-            break;
-          }
-        }
-      }
-    });
-
+    // PASSO 2: Sobras
     rel.reembolsos = extrato.filter(e => !e.usado).map(e => ({
       textoOriginal: e.texto,
       valorFormatado: formatMoney(e.valor)
     }));
 
     results.value = rel;
-    await addLog("Conferência Finalizada.");
+    await addLog("Conferência Finalizada!");
 
   } catch (err) {
-    await addLog("ERRO CRÍTICO: " + err.message);
+    await addLog("ERRO: " + err.message);
   } finally {
     isProcessing.value = false;
   }
