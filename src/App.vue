@@ -3,8 +3,8 @@
     <div class="max-w-7xl mx-auto bg-white p-6 md:p-8 rounded-xl shadow-lg border border-slate-200">
 
       <div class="text-center mb-8">
-        <h1 class="text-3xl font-extrabold text-blue-700 tracking-tight mb-2">Conciliação Financeira v7.7</h1>
-        <p class="text-slate-500">Agrupamento de Múltiplos Lançamentos + Margem de R$ 0,10</p>
+        <h1 class="text-3xl font-extrabold text-blue-700 tracking-tight mb-2">Conciliação Financeira v8.2</h1>
+        <p class="text-slate-500">Motor de Sanitização e Correlação | Margem de R$ 0,10 | Agrupamento Ativo</p>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -38,14 +38,17 @@
       </div>
 
       <button @click="processAndReconcile"
-              class="w-full bg-slate-800 hover:bg-black text-white font-bold py-4 rounded-lg shadow-md transition-all"
+              class="w-full bg-slate-800 hover:bg-black text-white font-bold py-4 rounded-lg shadow-md transition-all uppercase tracking-widest"
               :disabled="isProcessing">
-        {{ isProcessing ? 'REPROCESSANDO AGRUPAMENTOS...' : 'INICIAR CONFERÊNCIA' }}
+        {{ isProcessing ? 'Processando Dados...' : 'Iniciar Conferência' }}
       </button>
 
       <div v-if="logs.length > 0"
-           class="mt-8 bg-slate-900 text-blue-300 p-4 rounded-lg font-mono text-xs h-40 overflow-y-auto">
-        <div v-for="(log, index) in logs" :key="index">> {{ log }}</div>
+           class="mt-8 bg-slate-900 text-blue-300 p-4 rounded-lg font-mono text-xs h-40 overflow-y-auto shadow-inner">
+        <div v-for="(log, index) in logs" :key="index" class="mb-1">
+          <span class="text-slate-500">[{{ new Date().toLocaleTimeString() }}]</span>
+          <span class="ml-2">{{ log }}</span>
+        </div>
       </div>
 
       <div v-if="results" class="mt-10 space-y-10">
@@ -55,28 +58,41 @@
           </h2>
           <div class="grid grid-cols-1 gap-3">
             <div v-for="(item, i) in results.entradasOk" :key="i"
-                 class="bg-white border-l-4 border-emerald-500 p-4 shadow-sm rounded-r-lg">
+                 class="bg-white border-l-4 border-emerald-500 p-4 shadow-sm rounded-r-lg hover:shadow-md transition-shadow">
               <div class="flex justify-between font-bold text-slate-800">
-                <span>{{ item.cliente }}</span>
-                <span>Pasta: {{ item.pasta }}</span>
+                <span class="uppercase">{{ item.cliente }}</span>
+                <span class="text-emerald-600">Pasta: {{ item.pasta }}</span>
               </div>
-              <p class="mt-1 text-sm text-blue-600 font-semibold">{{ item.resumoValores }}</p>
-              <p class="mt-2 text-xs text-slate-500 whitespace-pre-line">{{ item.detalhes }}</p>
+              <p class="mt-1 text-sm font-mono font-bold text-blue-700">{{ item.resumoValores }}</p>
+              <div
+                  class="mt-2 text-xs text-slate-500 bg-slate-50 p-2 rounded border border-slate-100 whitespace-pre-line">
+                {{ item.detalhes }}
+              </div>
             </div>
           </div>
         </section>
 
         <section v-if="results.reembolsos.length">
           <h2 class="text-xl font-bold text-blue-700 mb-4 flex items-center">
-            <span class="bg-blue-100 px-3 py-1 rounded-full mr-2">{{ results.reembolsos.length }}</span> Sem
-            Correspondência no Projuris
+            <span class="bg-blue-100 px-3 py-1 rounded-full mr-2">{{ results.reembolsos.length }}</span> Créditos Sem
+            Correspondência
           </h2>
-          <div class="bg-white rounded-lg shadow-sm border border-blue-100 p-4">
-            <div v-for="(item, i) in results.reembolsos" :key="i"
-                 class="text-sm border-b py-2 flex justify-between gap-4">
-              <span class="text-slate-600">{{ item.nome }}</span>
-              <span class="font-bold text-blue-600">R$ {{ item.valorFormatado }}</span>
-            </div>
+          <div class="bg-white rounded-lg shadow-sm border border-blue-100 overflow-hidden">
+            <table class="w-full text-left border-collapse">
+              <thead>
+              <tr class="bg-blue-50 text-blue-700 text-xs uppercase font-bold">
+                <th class="p-3">Origem no Extrato</th>
+                <th class="p-3 text-right">Valor Total</th>
+              </tr>
+              </thead>
+              <tbody>
+              <tr v-for="(item, i) in results.reembolsos" :key="i"
+                  class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                <td class="p-3 text-sm text-slate-600">{{ item.nome }}</td>
+                <td class="p-3 text-sm font-bold text-right text-blue-600">R$ {{ item.valorFormatado }}</td>
+              </tr>
+              </tbody>
+            </table>
           </div>
         </section>
       </div>
@@ -98,8 +114,9 @@ const results = ref(null);
 
 const addLog = async (m) => {
   logs.value.push(m);
-  await new Promise(r => setTimeout(r, 5));
+  await new Promise(r => setTimeout(r, 10));
 };
+
 const handleFile = (e, t) => {
   if (e.target.files[0]) files.value[t] = e.target.files[0];
 };
@@ -113,6 +130,40 @@ const parseMoney = (s) => {
 };
 
 const formatMoney = (v) => v.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+
+// Função de Sanitização: Remove pedaços inúteis e rankeia palavras
+const sanitizeText = (text) => {
+  if (!text) return [];
+  let clean = text.toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
+      .replace(/[^a-z0-9]/g, ' '); // Mantém apenas alfanuméricos
+
+  // Dicionário de Stop Words (Palavras a serem ignoradas)
+  const stopWords = ['de', 'do', 'da', 'dos', 'das', 'x', 'sa', 'ltda', 'me', 'eireli', 'inss', 'honorarios', 'parcela', 'acordo', 'recebimento', 'pix', 'ted', 'doc', 'credito', 'liquidacao', 'cobranca', 'advogados', 'associados', 'cabrera', 'joana', 'nicolas', 'della', 'casa', 'afonso', 'pinto', 'resultado', 'vencido', 'pago', 'repasse', 'indicacao', 'contratuais', 'fixos', 'consultoria', 'administrativo', 'e'];
+
+  let words = clean.split(/\s+/).filter(w => w.length > 2 && !stopWords.includes(w));
+  return [...new Set(words)]; // Retorna palavras únicas
+};
+
+// Algoritmo de Subconjuntos: Busca combinações de frações caso a pasta não seja paga inteira
+const findSubsets = (arr, target) => {
+  const result = [];
+  const search = (idx, current, currentSum) => {
+    if (Math.abs(currentSum - target) <= 0.10) {
+      result.push([...current]);
+      return;
+    }
+    if (currentSum > target + 0.10 || idx >= arr.length) return;
+
+    current.push(arr[idx]);
+    search(idx + 1, current, currentSum + arr[idx].valor);
+    current.pop();
+    search(idx + 1, current, currentSum);
+  };
+  const sortedArr = [...arr].sort((a, b) => b.valor - a.valor);
+  search(0, [], 0);
+  return result;
+};
 
 const readPDF = async (file) => {
   const reader = new FileReader();
@@ -132,87 +183,149 @@ const readPDF = async (file) => {
 };
 
 const processAndReconcile = async () => {
-  if (!files.value.extrato || !files.value.projuris) return alert("Arquivos necessários!");
+  if (!files.value.extrato || !files.value.projuris) return alert("Selecione os arquivos obrigatórios.");
   isProcessing.value = true;
   logs.value = [];
   results.value = null;
 
   try {
-    const [txtExt, txtPro] = await Promise.all([readPDF(files.value.extrato), readPDF(files.value.projuris)]);
+    const [txtExt, txtPro, txtRep] = await Promise.all([
+      readPDF(files.value.extrato),
+      readPDF(files.value.projuris),
+      files.value.repasses ? readPDF(files.value.repasses) : Promise.resolve("")
+    ]);
 
-    await addLog("Extraindo e Agrupando Projuris por Pasta...");
+    await addLog("Extraindo e Sanitizando Projuris...");
     const projurisPorPasta = {};
     const proRegex = /(CABRERA|JOANA|NICOLAS|ASSOCIADOS|ESCRIT).*?(\d{3,5}).*?R\$\s*([\d., ]+)/gi;
     let m;
     while ((m = proRegex.exec(txtPro)) !== null) {
+      const origem = m[1].toUpperCase();
       const pasta = m[2];
       const valor = parseMoney(m[3]);
-      const origem = m[1].trim();
+      const contexto = txtPro.substring(Math.max(0, m.index - 150), Math.min(txtPro.length, m.index + 150));
 
       if (!projurisPorPasta[pasta]) {
-        projurisPorPasta[pasta] = {total: 0, itens: [], contexto: ""};
-        projurisPorPasta[pasta].contexto = txtPro.substring(Math.max(0, m.index - 400), Math.min(txtPro.length, m.index + 400));
+        projurisPorPasta[pasta] = {itens: [], total: 0, words: []};
       }
+      projurisPorPasta[pasta].itens.push({origem, valor, usado: false});
       projurisPorPasta[pasta].total += valor;
-      projurisPorPasta[pasta].itens.push({origem, valor});
+      projurisPorPasta[pasta].words.push(...sanitizeText(contexto));
     }
 
-    await addLog("Extraindo e Agrupando Extrato por Cliente...");
+    // De-duplicar palavras por pasta
+    for (const p in projurisPorPasta) {
+      projurisPorPasta[p].words = [...new Set(projurisPorPasta[p].words)];
+    }
+
+    await addLog("Extraindo Repasses...");
+    const repassesPorPasta = {};
+    if (txtRep) {
+      const repRegex = /(\d{3,5})[\s\S]{1,50}?R\$\s*([\d., ]+)/gi;
+      let mRep;
+      while ((mRep = repRegex.exec(txtRep)) !== null) {
+        const pasta = mRep[1];
+        const valor = parseMoney(mRep[2]);
+        if (!repassesPorPasta[pasta]) repassesPorPasta[pasta] = 0;
+        repassesPorPasta[pasta] += valor;
+      }
+    }
+
+    await addLog("Agrupando Múltiplos Pagamentos do Extrato...");
     const extratoAgrupado = {};
 
-    // PIX
+    // Coleta PIX
     const pixRegex = /RECEBIMENTO PIX (.*?) (?:[\*|\d]|$).*?R\$\s*([\d., ]+?)C/gi;
     let ex;
     while ((ex = pixRegex.exec(txtExt)) !== null) {
-      const nomeFull = ex[1].split(/[0-9\*]/)[0].trim();
+      const nomeLimpo = ex[1].replace(/[\d\*]/g, '').trim();
       const valor = parseMoney(ex[2]);
-      if (!extratoAgrupado[nomeFull]) extratoAgrupado[nomeFull] = {total: 0, linhas: 0};
-      extratoAgrupado[nomeFull].total += valor;
-      extratoAgrupado[nomeFull].linhas += 1;
+      if (!extratoAgrupado[nomeLimpo]) extratoAgrupado[nomeLimpo] = {total: 0, qtd: 0, words: sanitizeText(nomeLimpo)};
+      extratoAgrupado[nomeLimpo].total += valor;
+      extratoAgrupado[nomeLimpo].qtd += 1;
     }
 
-    // TED/OUTROS
+    // Coleta TED e Diversos
     const tedRegex = /(CRÉD\.TED|LIQUIDAÇÃO|COBRANÇA).*?R\$\s*([\d., ]+?)C/gi;
     while ((ex = tedRegex.exec(txtExt)) !== null) {
       const nome = ex[1].trim();
       const valor = parseMoney(ex[2]);
-      if (!extratoAgrupado[nome]) extratoAgrupado[nome] = {total: 0, linhas: 0};
+      if (!extratoAgrupado[nome]) extratoAgrupado[nome] = {total: 0, qtd: 0, words: sanitizeText(nome)};
       extratoAgrupado[nome].total += valor;
-      extratoAgrupado[nome].linhas += 1;
+      extratoAgrupado[nome].qtd += 1;
     }
 
-    await addLog("Cruzando dados (Margem de R$ 0,10)...");
+    await addLog("Cruzando Informações (Rankeamento por Correlação)...");
     const rel = {entradasOk: [], reembolsos: []};
     const pastasUsadas = new Set();
 
-    for (const [nomeCliente, dadosBanco] of Object.entries(extratoAgrupado)) {
-      let match = false;
+    for (const [nomeBanco, dadosBanco] of Object.entries(extratoAgrupado)) {
       const valorBanco = Math.round(dadosBanco.total * 100) / 100;
-      const primeiroNome = nomeCliente.split(' ')[0].toUpperCase();
+      const wordsBanco = dadosBanco.words;
+      let candidatos = [];
 
-      for (const [numPasta, dadosPasta] of Object.entries(projurisPorPasta)) {
-        if (pastasUsadas.has(numPasta)) continue;
+      for (const [pasta, dadosPasta] of Object.entries(projurisPorPasta)) {
+        if (pastasUsadas.has(pasta)) continue;
 
-        const valorProjuris = Math.round(dadosPasta.total * 100) / 100;
-        const diff = Math.abs(valorProjuris - valorBanco);
+        const repasse = repassesPorPasta[pasta] || 0;
+        const targetProjuris = Math.round((valorBanco - repasse) * 100) / 100;
 
-        // REGRA DE OURO: Valor bate (margem 0.10) E o nome aparece no contexto da pasta
-        if (diff <= 0.10 && (dadosPasta.contexto.includes(primeiroNome) || nomeCliente.length < 5)) {
-          rel.entradasOk.push({
-            cliente: nomeCliente,
-            pasta: numPasta,
-            resumoValores: `Banco: R$ ${formatMoney(valorBanco)} | Projuris: R$ ${formatMoney(valorProjuris)}`,
-            detalhes: `Lançamentos Projuris:\n` + dadosPasta.itens.map(i => `- ${i.origem}: R$ ${formatMoney(i.valor)}`).join('\n') +
-                (dadosBanco.linhas > 1 ? `\n(Agrupado de ${dadosBanco.linhas} créditos no extrato)` : '')
+        const unusedItems = dadosPasta.itens.filter(i => !i.usado);
+        if (unusedItems.length === 0) continue;
+
+        const sumAll = Math.round(unusedItems.reduce((a, b) => a + b.valor, 0) * 100) / 100;
+        let validSubset = null;
+
+        // Estratégia 1: Pasta inteira + Repasse
+        if (Math.abs(sumAll - targetProjuris) <= 0.10) {
+          validSubset = unusedItems;
+        }
+        // Estratégia 2: Fração da pasta + Repasse
+        else {
+          const subsets = findSubsets(unusedItems, targetProjuris);
+          if (subsets.length > 0) validSubset = subsets[0];
+        }
+
+        // Se encontrou combinação matemática válida, calcula o "Score" (Rank de Correlações)
+        if (validSubset) {
+          let score = 0;
+          for (const w of wordsBanco) {
+            if (dadosPasta.words.includes(w)) score++;
+          }
+          candidatos.push({
+            pasta,
+            score,
+            items: validSubset,
+            sum: validSubset.reduce((a, b) => a + b.valor, 0) + repasse
           });
-          pastasUsadas.add(numPasta);
-          match = true;
-          break;
         }
       }
 
-      if (!match) {
-        rel.reembolsos.push({nome: nomeCliente, valorFormatado: formatMoney(valorBanco)});
+      if (candidatos.length > 0) {
+        // Rankeia pelo maior Score
+        candidatos.sort((a, b) => b.score - a.score);
+        const best = candidatos[0];
+
+        // Aceita se tiver alguma palavra correspondente OU se for a única opção possível (ex: Liquidação)
+        if (best.score > 0 || candidatos.length === 1) {
+          best.items.forEach(i => i.usado = true);
+
+          const allUsed = projurisPorPasta[best.pasta].itens.every(i => i.usado);
+          if (allUsed) pastasUsadas.add(best.pasta);
+
+          rel.entradasOk.push({
+            cliente: nomeBanco,
+            pasta: best.pasta,
+            resumoValores: `Banco: R$ ${formatMoney(valorBanco)} | Projuris/Repasse: R$ ${formatMoney(best.sum)}`,
+            detalhes: `Nível de Correlação: ${best.score > 0 ? best.score + ' palavras chave' : 'Match Exclusivo por Valor'}\nComposição:\n` +
+                best.items.map(i => `• ${i.origem}: R$ ${formatMoney(i.valor)}`).join('\n') +
+                (dadosBanco.qtd > 1 ? `\n(Agrupado de ${dadosBanco.qtd} créditos no banco)` : '')
+          });
+        } else {
+          rel.reembolsos.push({nome: nomeBanco, valorFormatado: formatMoney(valorBanco)});
+        }
+      } else {
+        rel.reembolsos.push({nome: nomeBanco, valorFormatado: formatMoney(valorBanco)});
       }
     }
 
@@ -220,8 +333,7 @@ const processAndReconcile = async () => {
     await addLog("Conferência Finalizada!");
 
   } catch (e) {
-    await addLog("Erro Crítico: " + e.message);
-    console.error(e);
+    await addLog("Erro: " + e.message);
   } finally {
     isProcessing.value = false;
   }
